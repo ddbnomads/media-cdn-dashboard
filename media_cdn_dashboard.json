@@ -1,0 +1,1720 @@
+### replace [projectID] with your project's project ID value ####
+### ensure that you enable Observability Analtyics in your Log Storage repository else the reports won't generate ###
+### it may take up to 24 hours for the reports to generate properly ####
+
+{
+  "displayName": "Media CDN Dashboard",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "service_name",
+      "templateVariable": "Service",
+      "valueType": "STRING_ARRAY"
+    },
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "route_destination",
+      "templateVariable": "Origin",
+      "valueType": "STRING_ARRAY"
+    },
+    {
+      "filterType": "VALUE_ONLY",
+      "labelKey": "",
+      "templateVariable": "ASN",
+      "timeSeriesQuery": {
+        "opsAnalyticsQuery": {
+          "queryExecutionRules": {
+            "useReservedSlots": false
+          },
+          "queryHandle": "",
+          "savedQueryId": "",
+          "sql": "WITH\n  scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._Default` )\nSELECT\n  JSON_VALUE(json_payload.clientAsn),\n\nFROM\n  scope_query\n\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  json_payload.clientAsn IS NOT NULL"
+        },
+        "outputFullDuration": false,
+        "unitOverride": ""
+      },
+      "valueType": "STRING_ARRAY"
+    },
+    {
+      "filterType": "VALUE_ONLY",
+      "labelKey": "",
+      "templateVariable": "Country",
+      "timeSeriesQuery": {
+        "opsAnalyticsQuery": {
+          "queryExecutionRules": {
+            "useReservedSlots": false
+          },
+          "queryHandle": "",
+          "savedQueryId": "",
+          "sql": "WITH\n  scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._Default` )\nSELECT\n  JSON_VALUE(json_payload.clientRegionCode),\n\nFROM\n  scope_query\n\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  json_payload.clientRegionCode IS NOT NULL"
+        },
+        "outputFullDuration": false,
+        "unitOverride": ""
+      },
+      "valueType": "STRING_ARRAY"
+    }
+  ],
+  "description": "",
+  "labels": {},
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 27,
+        "width": 48,
+        "widget": {
+          "title": "1. Media CDN - At a Glance",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "xPos": 1,
+        "height": 13,
+        "width": 16,
+        "widget": {
+          "title": "Bytes Delivered by Cache Status",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"cache_result\""
+                      ],
+                      "perSeriesAligner": "ALIGN_RATE"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/request_bytes_count\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 17,
+        "height": 13,
+        "width": 16,
+        "widget": {
+          "title": "Cache Offload ",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX21qaTI5eE5VblJHWmMydlMzOEQ5MUhGVHlqWHQaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  CASE\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%hit%' THEN 'Hit'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%miss%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%stale%') THEN 'Miss'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%stale%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%bypassed%')THEN 'Hit'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%bypassed%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%stale%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%miss%')THEN 'Bypassed'\n    ELSE 'Unknown'\n  END AS Cache_Status,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent,\n  ROUND(\n    (COUNT(timestamp) * 100.0) / SUM(COUNT(timestamp)) OVER(),\n    2\n  ) AS Percentage\n  \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND json_payload.cacheStatus IS NOT NULL\n  AND IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\n  AND IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\n  AND IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\n  AND IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\nGROUP BY\n  Cache_Status\nORDER BY\n  Requests DESC,\n  Percentage;"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "xPos": 33,
+        "height": 13,
+        "width": 14,
+        "widget": {
+          "title": "Top 10 ASN",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CghbP45GsVNblhIgam9iX25CLWlOUW5rQWd1WGU2ckluSF9neXNRcnBOUkEaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "WITH\n  scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._Default` )\nSELECT\n  JSON_VALUE(json_payload.clientAsn) as Client_ASN,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\nFROM\n  scope_query\n\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  json_payload.clientAsn IS NOT NULL\n  AND\n  IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  client_Asn\n\nORDER BY GiB_Sent DESC\nLIMIT\n  10"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 13,
+        "xPos": 1,
+        "height": 14,
+        "width": 16,
+        "widget": {
+          "title": "Top 10 GiB Sent by Domain",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CghbP45GsVNblhIgam9iXzF2MmtzaklxNm5ONW1fNnhLMnZxSi14ZFdReV8aAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "WITH\n  scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._Default` )\nSELECT\n  CAST( REGEXP_EXTRACT( http_request.request_url, '^(?:https?:\\\\/\\\\/)?(?:www\\\\.)?([^:\\\\/\\\\n]+)') AS STRING ) AS domainName,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\nFROM\n  scope_query\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\n  AND\nIF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\nGROUP BY\n  CAST( REGEXP_EXTRACT( http_request.request_url, '^(?:https?:\\\\/\\\\/)?(?:www\\\\.)?([^:\\\\/\\\\n]+)') AS STRING ) \nORDER BY GiB_Sent DESC\nLIMIT\n  10"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 13,
+        "xPos": 17,
+        "height": 14,
+        "width": 30,
+        "widget": {
+          "title": "Origin GIB",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CghbP45GsVNblhIgam9iX2lpdWhaMkJSZklMdkRWVms2OE5OckU2eHM3SzYaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "WITH\n  scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._Default` )\nSELECT\n  --CAST( REGEXP_EXTRACT( http_request.request_url, '^(?:https?:\\\\/\\\\/)?(?:www\\\\.)?([^:\\\\/\\\\n]+)') AS STRING ) AS domainName,\n  CAST (JSON_VALUE(resource.labels.route_destination) AS STRING) AS Origin_Host,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\nFROM\n  scope_query\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  JSON_VALUE(json_payload.proxyStatus) LIKE \"%Google-Edge-Cache-Origin%\"\n  AND\nIF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\nGROUP BY\n  --CAST( REGEXP_EXTRACT( http_request.request_url, '^(?:https?:\\\\/\\\\/)?(?:www\\\\.)?([^:\\\\/\\\\n]+)') AS STRING ) \n  Origin_Host\nORDER BY GiB_Sent DESC\nLIMIT\n  10"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 27,
+        "height": 145,
+        "width": 48,
+        "widget": {
+          "title": "2. Ingress Patterns",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "yPos": 27,
+        "xPos": 1,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "Egress Traffic",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "Traffic_Date",
+                    "columnType": "TIMESTAMP",
+                    "maxBinCount": 0,
+                    "sortColumn": "Traffic_Date",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "timeBinSize": "0s",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "sum"
+                    },
+                    "column": "bytes"
+                  }
+                ],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  timestamp AS Traffic_Date,\n  SUM( http_request.response_size ) AS bytes\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND\n  json_payload.clientAsn IS NOT NULL\n  AND\nIF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\nIF\n  ( ARRAY_LENGTH(@Service) = 0, TRUE, JSON_VALUE(resource.labels.service_name) IN UNNEST(@Service) )\n\n\nGROUP BY\n  Traffic_Date\nORDER BY\n  Traffic_Date"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 27,
+        "xPos": 25,
+        "height": 16,
+        "width": 22,
+        "widget": {
+          "title": "Total Requests by Country - Top 10",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "Client_Country",
+                    "limit": 10,
+                    "sortOrder": "SORT_ORDER_DESCENDING"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "column": "Traffic_Date",
+                    "columnType": "TIMESTAMP",
+                    "maxBinCount": 0,
+                    "sortColumn": "Traffic_Date",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "timeBinSize": "0s",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": ""
+                  }
+                ],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  JSON_VALUE(json_payload.clientRegionCode) AS Client_Country,\n  timestamp AS Traffic_Date,\n  EXTRACT(HOUR FROM timestamp) AS Traffic_Hour,\n  COUNT(timestamp) AS Requests\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND\n  json_payload.clientRegionCode IS NOT NULL\n  AND\nIF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\nIF\n  ( ARRAY_LENGTH(@Service) = 0, TRUE, JSON_VALUE(resource.labels.service_name) IN UNNEST(@Service) )\n\nGROUP BY\n  Client_Country,\n  Traffic_Date\nORDER BY\n  Client_Country,\n  Traffic_Date"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 43,
+        "xPos": 1,
+        "height": 12,
+        "width": 23,
+        "widget": {
+          "title": "Top 10 Requests by Country by GiB Sent",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX3lwM2tVRkVwcWZ3TEx2dndhSjYwR1BBYlA4YUMaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  JSON_VALUE(json_payload.clientRegionCode) AS Client_Country,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\n  \n\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  json_payload.clientAsn IS NOT NULL\n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\n  AND \n  IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\n\nGROUP BY\n  Client_Country\n\nORDER BY GiB_Sent DESC\nLIMIT\n  10"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 43,
+        "xPos": 25,
+        "height": 12,
+        "width": 22,
+        "widget": {
+          "title": "Traffic by Country by GiB Sent (Top 10)",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "Client_Country",
+                    "limit": 10,
+                    "sortOrder": "SORT_ORDER_DESCENDING"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "column": "Traffic_Date",
+                    "columnType": "TIMESTAMP",
+                    "maxBinCount": 0,
+                    "sortColumn": "Traffic_Date",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "timeBinSize": "0s",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "sum"
+                    },
+                    "column": "GiBSent"
+                  }
+                ],
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  JSON_VALUE(json_payload.clientRegionCode) AS Client_Country,\n  timestamp AS Traffic_Date,\n  SUM( http_request.response_size )/1073741824 AS GiBSent\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND\n  json_payload.clientAsn IS NOT NULL\n  AND\nIF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\nIF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\nIF\n  ( ARRAY_LENGTH(@Service) = 0, TRUE, JSON_VALUE(resource.labels.service_name) IN UNNEST(@Service) )\n\nGROUP BY\n  Client_Country,\n  Traffic_Date\nORDER BY\n  Client_Country,\n  Traffic_Date"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 55,
+        "xPos": 1,
+        "height": 13,
+        "width": 23,
+        "widget": {
+          "title": "Top 20 Requests by Client IP",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX0R0OUVNWHY2bzRYM0h4ajlHTHQ0R010UXpuOU0aAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  http_request.remote_ip,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\n\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND \n  json_payload.clientAsn IS NOT NULL\n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\nAND \n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  http_request.remote_ip\n\nORDER BY Requests DESC\nLIMIT\n  20"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 55,
+        "xPos": 25,
+        "height": 13,
+        "width": 22,
+        "widget": {
+          "title": "Status Codes",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "",
+                "measures": [],
+                "minAlignmentPeriod": "60s",
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.\"response_code\""
+                      ],
+                      "perSeriesAligner": "ALIGN_RATE"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/request_count\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 68,
+        "xPos": 1,
+        "height": 10,
+        "width": 46,
+        "widget": {
+          "title": "Top URLs",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": true,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "request_url",
+                    "columnType": "STRING",
+                    "maxBinCount": 5,
+                    "sortColumn": "request_url",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "Requests"
+                  }
+                ],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  count(timestamp) as Requests, \n\n  http_request.request_url, \n\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\n  \n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  2,\n  timestamp\nORDER BY\n  timestamp DESC\n  --LIMIT 100"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 78,
+        "height": 13,
+        "width": 47,
+        "widget": {
+          "title": "Top 100 Requests - Grouped by Performance",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX2lJYjNRdlFMQ0NsNUJNVUNVcE8xQzNuM1l5NnoaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "WITH scope_query AS (\n  SELECT\n    *\n  FROM\n    `[projectID].global._Default._AllLogs`\n  WHERE\n    resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n    AND json_payload.cacheStatus IS NOT NULL\n    AND IF(\n      ARRAY_LENGTH(@Country) = 0,\n      TRUE,\n      JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n    )\n    AND IF(\n      ARRAY_LENGTH(@ASN) = 0,\n      TRUE,\n      JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n    )\n    AND IF(\n      ARRAY_LENGTH(@Origin) = 0,\n      TRUE,\n      JSON_VALUE(resource.labels.route_destination) IN UNNEST(@Origin)\n    )\n    AND IF(\n      ARRAY_LENGTH(@Service) = 0,\n      TRUE,\n      JSON_VALUE(resource.labels.service_name) IN UNNEST(@Service)\n    )\n)\nSELECT\n  http_request.request_url,\n  COUNT(1) AS total_requests,\n  CASE\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%hit%' THEN 'Hit'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%miss%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%stale%') THEN 'Miss'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%stale%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%bypassed%')THEN 'Hit'\n    WHEN JSON_VALUE(json_payload.cacheStatus) LIKE '%bypassed%' AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%hit%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%stale%')\n      AND (JSON_VALUE(json_payload.cacheStatus) NOT LIKE '%miss%')THEN 'Bypassed'\n    ELSE 'Unknown'\n  END AS Cache_Status,\n  COUNTIF((http_request.status >= 200) AND (http_request.status < 400)) AS success_2xx,\n  COUNTIF((http_request.status >= 400) AND (http_request.status < 500)) AS nonsuccess_4xx,\n  COUNTIF((http_request.status >= 500) AND (http_request.status < 600)) AS nonsuccess_5xx\nFROM\n  scope_query\nGROUP BY\n  http_request.request_url,\n  Cache_Status\nORDER BY\n  total_requests DESC\nLIMIT 100;"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 91,
+        "xPos": 1,
+        "height": 15,
+        "width": 46,
+        "widget": {
+          "title": "Top 4xx URLs",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX1I5Smxyei1wNm5XZjBxLVBPNFd3bzZRejVfS0waAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  http_request.request_url,\n  http_request.status,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\n  AND http_request.status IN (400, 401, 402, 403, 404, 405, 407)\n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\nGROUP BY\n  http_request.request_url,\n  http_request.status\nORDER BY\n  Requests DESC\n--LIMIT 100"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 106,
+        "xPos": 1,
+        "height": 15,
+        "width": 46,
+        "widget": {
+          "title": "Top 5xx URLs",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX1pCMGZtR18zQUlaTlJNQ1dpcHRfNHBCTTRONEYaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  http_request.request_url,\n  http_request.status,\n  COUNT(timestamp) AS Requests,\n  CEIL(SUM( http_request.response_size )/1073741824 * 100) / 100 AS GiB_Sent\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule'\n  AND NOT\n  JSON_VALUE(json_payload.cacheStatus)=\"Google-Edge-Cache-Origin\"\n  AND http_request.status IN (500, 501, 502, 503, 504, 509, 511)\n AND\nIF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  http_request.request_url,\n  http_request.status\nORDER BY\n  Requests DESC\n--LIMIT 100"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 121,
+        "xPos": 2,
+        "height": 10,
+        "width": 14,
+        "widget": {
+          "title": "Protocol",
+          "id": "",
+          "pieChart": {
+            "chartType": "PIE",
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "Protocol",
+                    "columnType": "STRING",
+                    "maxBinCount": 5,
+                    "sortColumn": "Protocol",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "sum"
+                    },
+                    "column": "requests"
+                  }
+                ],
+                "sliceNameTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  count(timestamp) as requests, \n  http_request.protocol AS Protocol\n\n \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  \n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  Protocol"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "showLabels": false,
+            "showTotal": false,
+            "sliceAggregatedThreshold": 0
+          }
+        }
+      },
+      {
+        "yPos": 121,
+        "xPos": 17,
+        "height": 10,
+        "width": 14,
+        "widget": {
+          "title": "TLS",
+          "id": "",
+          "pieChart": {
+            "chartType": "PIE",
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "TLS_Version",
+                    "columnType": "STRING",
+                    "maxBinCount": 5,
+                    "sortColumn": "TLS_Version",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "sum"
+                    },
+                    "column": "requests"
+                  }
+                ],
+                "sliceNameTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  count(timestamp) as requests, \n  JSON_VALUE(json_payload.tlsVersion) AS TLS_Version\n\n \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  \n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  TLS_Version"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "showLabels": false,
+            "showTotal": false,
+            "sliceAggregatedThreshold": 0
+          }
+        }
+      },
+      {
+        "yPos": 121,
+        "xPos": 32,
+        "height": 10,
+        "width": 14,
+        "widget": {
+          "title": "Method",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": true,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "request_method",
+                    "columnType": "STRING",
+                    "maxBinCount": 5,
+                    "sortColumn": "request_method",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "requests"
+                  }
+                ],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  count(timestamp) as requests, \n  http_request.request_method, \n \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  \n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  2,\n  timestamp\nORDER BY\n  timestamp DESC\n  --LIMIT 100"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 131,
+        "xPos": 1,
+        "height": 14,
+        "width": 19,
+        "widget": {
+          "title": "Top Referer",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX3lncmlDeGgwOXVEN3JLckFES3hvbzdtVm5mTFkaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  http_request.referer as Referer,\n  count(timestamp) as Requests \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n\n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  http_request.referer\nORDER BY\n  Requests DESC;\n"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 131,
+        "xPos": 20,
+        "height": 14,
+        "width": 27,
+        "widget": {
+          "title": "Top User Agents",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": true,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "user_agent",
+                    "columnType": "STRING",
+                    "maxBinCount": 5,
+                    "sortColumn": "user_agent",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "requests"
+                  }
+                ],
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  count(timestamp) as requests, \n\n  http_request.user_agent,\n \nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \nAND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\n\nGROUP BY\n  2,\n  timestamp\nORDER BY\n  timestamp DESC\n  --LIMIT 100"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 145,
+        "height": 27,
+        "width": 47,
+        "widget": {
+          "title": "Last 200 requests through Media CDN",
+          "id": "",
+          "timeSeriesTable": {
+            "columnSettings": [],
+            "dataSets": [
+              {
+                "tableTemplate": "",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "CgipFw831NHn-BIgam9iX0c5SFRSM0V5dUM4eWhKa3ZRTlNLMWJQQ0hkTjUaAlVTQLqYlpiMCQ",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  timestamp,\n  http_request.request_url,\n  http_request.status,\n  http_request.request_method,\n  http_request.user_agent,\n  http_request.remote_ip AS IP_Address,\n  http_request.referer AS Referer,\n  JSON_VALUE(json_payload.cacheStatus) AS Cache_Status,\n  JSON_VALUE(json_payload.cacheId) AS Delivery_Path, \n  JSON_VALUE(json_payload.metroIataCode) AS Delivery_Node, \n  JSON_VALUE(json_payload.clientAsn) AS Client_ASN,\n  JSON_VALUE(json_payload.clientCity) AS Client_City,\n  JSON_VALUE(json_payload.clientRegionCode) AS Client_Country,\n  JSON_VALUE(json_payload.enforcedSecurityPolicy.name) AS Security_Policy,\n  JSON_VALUE(json_payload.enforcedSecurityPolicy.priority) AS Rule_Priority,\n  JSON_VALUE(json_payload.enforcedSecurityPolicy.configuredAction) AS Rule_Action,\n  JSON_VALUE(json_payload.previewSecurityPolicy.priority) AS Preview_Rule_Priority,\n  JSON_VALUE(json_payload.previewSecurityPolicy.configuredAction) AS Preview_Rule_Action,\n  JSON_VALUE(json_payload.requestId) AS Request_Id\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND (json_payload.enforcedSecurityPolicy.name IS NOT NULL\n    OR json_payload.previewSecurityPolicy.name IS NOT NULL)\n  AND IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\n  AND IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\n  AND IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\n  AND IF\n  ( ARRAY_LENGTH(@Service) = 0, TRUE, JSON_VALUE(resource.labels.service_name) IN UNNEST(@Service) )\nORDER BY\n  timestamp DESC\nLIMIT\n  200"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "displayColumnType": false,
+            "metricVisualization": "NUMBER"
+          }
+        }
+      },
+      {
+        "yPos": 172,
+        "height": 74,
+        "width": 48,
+        "widget": {
+          "title": "3. Performance",
+          "collapsibleGroup": {
+            "collapsed": false
+          },
+          "id": ""
+        }
+      },
+      {
+        "yPos": 172,
+        "xPos": 1,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "HTTP Time to First Byte by Hour",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 172,
+        "xPos": 24,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "Origin Time to First Byte by Hour",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttfb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 188,
+        "xPos": 1,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "HTTP Time to Last Byte by Hour",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 188,
+        "xPos": 24,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "Origin Time to Last Byte by Hour",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "3600s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "3600s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/origin_http_ttlb\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 204,
+        "xPos": 1,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Encoded bitrate of the Client by 5m",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/encoded_bitrates\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/encoded_bitrates\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 204,
+        "xPos": 24,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Buffer Length of Client by 5m",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/buffer_lengths\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/buffer_lengths\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/buffer_lengths\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 220,
+        "xPos": 1,
+        "height": 8,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Latest buffer starvation of the client [MEAN]",
+          "id": "",
+          "scorecard": {
+            "breakdowns": [],
+            "dimensions": [],
+            "measures": [],
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "thresholds": [],
+            "timeSeriesQuery": {
+              "outputFullDuration": false,
+              "timeSeriesFilter": {
+                "aggregation": {
+                  "alignmentPeriod": "60s",
+                  "crossSeriesReducer": "REDUCE_MEAN",
+                  "groupByFields": [],
+                  "perSeriesAligner": "ALIGN_RATE"
+                },
+                "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/buffer_starvation_count\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+              },
+              "unitOverride": ""
+            }
+          }
+        }
+      },
+      {
+        "yPos": 220,
+        "xPos": 24,
+        "height": 16,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Measured Throughput of the Client by 5m",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p50",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/measured_throughputs\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "Mean",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/measured_throughputs\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              },
+              {
+                "breakdowns": [],
+                "dimensions": [],
+                "legendTemplate": "p99",
+                "measures": [],
+                "minAlignmentPeriod": "300s",
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "outputFullDuration": false,
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "300s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "groupByFields": [],
+                      "perSeriesAligner": "ALIGN_DELTA"
+                    },
+                    "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/measured_throughputs\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+                  },
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 228,
+        "xPos": 1,
+        "height": 8,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Latest measured throughput of the client [MEAN]",
+          "id": "",
+          "scorecard": {
+            "breakdowns": [],
+            "dimensions": [],
+            "measures": [],
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "thresholds": [],
+            "timeSeriesQuery": {
+              "outputFullDuration": false,
+              "timeSeriesFilter": {
+                "aggregation": {
+                  "alignmentPeriod": "60s",
+                  "crossSeriesReducer": "REDUCE_MEAN",
+                  "groupByFields": [],
+                  "perSeriesAligner": "ALIGN_DELTA"
+                },
+                "filter": "metric.type=\"edgecache.googleapis.com/edge_cache_route_rule/cmcd/measured_throughputs\" resource.type=\"edgecache.googleapis.com/EdgeCacheRouteRule\" ${Service} ${Origin}"
+              },
+              "unitOverride": ""
+            }
+          }
+        }
+      },
+      {
+        "yPos": 236,
+        "xPos": 1,
+        "height": 10,
+        "width": 23,
+        "widget": {
+          "title": "[CMCD] Unique Video Session Count",
+          "id": "",
+          "xyChart": {
+            "chartOptions": {
+              "displayHorizontal": false,
+              "mode": "COLOR",
+              "showLegend": false
+            },
+            "dataSets": [
+              {
+                "breakdowns": [],
+                "dimensions": [
+                  {
+                    "column": "Traffic_Date",
+                    "columnType": "DATE",
+                    "maxBinCount": 0,
+                    "sortColumn": "Traffic_Date",
+                    "sortOrder": "SORT_ORDER_ASCENDING",
+                    "timeBinSize": "0s",
+                    "xMax": 0,
+                    "xMin": 0
+                  }
+                ],
+                "legendTemplate": "",
+                "measures": [
+                  {
+                    "aggregationFunction": {
+                      "parameters": [],
+                      "type": "count"
+                    },
+                    "column": "Unique_Sessions"
+                  }
+                ],
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "timeSeriesQuery": {
+                  "opsAnalyticsQuery": {
+                    "queryHandle": "",
+                    "savedQueryId": "",
+                    "sql": "SELECT\n  DATE(timestamp) AS Traffic_Date,\n  EXTRACT(HOUR FROM timestamp) AS Traffic_Hour,\n  COUNT(DISTINCT JSON_VALUE(json_payload.cmcd.sessionId)) AS Unique_Sessions\nFROM\n  `[projectID].global._Default._AllLogs`\nWHERE\n  resource.type = 'edgecache.googleapis.com/EdgeCacheRouteRule' \n  AND JSON_VALUE(json_payload.cmcd.sessionId) IS NOT NULL\n AND\n IF(\n    ARRAY_LENGTH(@Country) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientRegionCode) IN UNNEST(@Country)\n  )\nAND\n IF(\n    ARRAY_LENGTH(@ASN) = 0,\n    TRUE,\n    JSON_VALUE(json_payload.clientAsn) IN UNNEST(@ASN)\n  )\nAND\n  IF(\n    ARRAY_LENGTH(@Origin) = 0,\n    TRUE,\n    json_value(resource.labels.route_destination) IN UNNEST(@Origin)\n  )\nand\n  IF(\n    ARRAY_LENGTH(@Service) = 0,\n    TRUE,\n    json_value(resource.labels.service_name) IN UNNEST(@Service)\n  )\nGROUP BY\n  Traffic_Date,\n  Traffic_Hour\nORDER BY\n  Traffic_Date,\n  Traffic_Hour"
+                  },
+                  "outputFullDuration": false,
+                  "unitOverride": ""
+                }
+              }
+            ],
+            "thresholds": [],
+            "yAxis": {
+              "label": "",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
